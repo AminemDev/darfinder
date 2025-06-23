@@ -1,8 +1,6 @@
-
 import os
 import requests
 from bs4 import BeautifulSoup
-import time
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -34,9 +32,7 @@ def fetch_tayara():
 
         if any(k in title for k in SEARCH_KEYWORDS) and price <= MAX_PRICE:
             if "s+3" in title or "s+4" in title or "s+5" in title:
-            results.append(f"<b>{title.title()}</b>\\n{price} TND\\n{link}")
-{price} TND
-{link}")
+                results.append(f"<b>{title.title()}</b>\n{price} TND\n{link}")
     return results
 
 def main():
