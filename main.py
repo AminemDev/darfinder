@@ -34,7 +34,7 @@ def fetch_tayara():
 
         if any(k in title for k in SEARCH_KEYWORDS) and price <= MAX_PRICE:
             if "s+3" in title or "s+4" in title or "s+5" in title:
-                results.append(f"<b>{title.title()}</b>\n{price} TND\n{link}")
+            results.append(f"<b>{title.title()}</b>\\n{price} TND\\n{link}")
 {price} TND
 {link}")
     return results
