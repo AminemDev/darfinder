@@ -27,13 +27,16 @@ def fetch_tayara():
 
     results = []
     items = soup.find_all("a")
+    
     for item in items:
-        title = item.get("title")
+        # Try to get the title from 'title' attribute or <h2> tag
+        title = item.get("title") or (item.find("h2").text.strip() if item.find("h2") else None)
         link = item.get("href")
         if not title or not link:
             continue
+
         title_lower = title.lower()
-        if any(k in title_lower for k in SEARCH_KEYWORDS):
+        if any(k in title_lower for k in SEARCH_KEYWORDS) and ("s+3" in title_lower or "s+4" in title_lower or "s+5" in title_lower):
             results.append(f"<b>{title}</b>\nhttps://www.tayara.tn{link}")
     return results
 
