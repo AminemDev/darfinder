@@ -18,17 +18,10 @@ def send(msg):
 def fetch_tayara():
     url = "https://www.tayara.tn/ads/c/Immobilier/Appartements/l/Ariana/Ghazela/"
     soup = BeautifulSoup(requests.get(url).text, "html.parser")
-    cards = soup.select("a[data-testid='listing-ad']")
-    results = []
-    for c in cards:
-        title = c.get("title", "").lower()
-        if LOCATION in title and any(k in title for k in KEYWORDS):
-            price_tag = c.select_one("p")
-            price = int("".join(filter(str.isdigit, price_tag.text))) if price_tag else 0
-            if price <= MAX_PRICE:
-                link = "https://www.tayara.tn" + c["href"]
-                results.append(f"<b>{title.title()}</b>\n{price} TND\n{link}")
-    return results
+    cards = soup.select("a")
+    print("TAYARA LISTINGS FOUND:")
+    for card in cards:
+        print(card.get("title", ""), card.get("href", ""))
 
 def fetch_mubawab():
     url = "https://www.mubawab.tn/fr/cd/raoued/cit%C3%A9-el-ghazela/immobilier-a-vendre"
