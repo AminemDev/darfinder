@@ -46,11 +46,13 @@ def fetch_tayara():
     res = requests.get(url)
     soup = BeautifulSoup(res.text, "html.parser")
     items = soup.select("a.css-1c8trrd")
+    print(f"Found {len(items)} listings on Tayara")  # Debug info
     results = []
 
     for item in items:
         title_tag = item.select_one("h2")
         if not title_tag:
+            print("Skipped an item with no title")
             continue
         title = title_tag.text.strip().lower()
         link = "https://www.tayara.tn" + item["href"]
@@ -59,13 +61,20 @@ def fetch_tayara():
         price_text = price_tag.text.strip().replace("DT", "").replace(",", "").replace(" ", "") if price_tag else "0"
         price = int("".join(filter(str.isdigit, price_text))) if price_text else 0
 
-        # Filtering logic
+        print(f"Checking listing: '{title}', Price: {price}, Link: {link}")  # Debug
+
         if any(k in title for k in SEARCH_KEYWORDS) and price <= MAX_PRICE:
-            # Simple room count check in title (you can improve this)
             if any(f"s+{n}" in title for n in range(MIN_ROOMS, 10)):
                 if not has_been_seen(link):
+                    print(f"New matching listing found: {link}")  # Debug
                     results.append(f"<b>{title.title()}</b>\n{price} TND\n{link}")
                     mark_as_seen(link)
+                else:
+                    print("Already seen this listing.")
+            else:
+                print("Does not match room count requirement.")
+        else:
+            print("Does not match keywords or price.")
 
     return results
 
