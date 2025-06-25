@@ -1,24 +1,11 @@
 import os
-import json
 import requests
 from bs4 import BeautifulSoup
-import firebase_admin
-from firebase_admin import credentials, db
 
-# Load Firebase config JSON from environment variable
-firebase_config = json.loads(os.environ['FIREBASE_CONFIG_JSON'])
-
-# Initialize Firebase app
-cred = credentials.Certificate(firebase_config)
-firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://dar-finder-default-rtdb.firebaseio.com'  # replace with your actual databaseURL
-})
-
-# Telegram details from environment
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+SCRAPER_API_KEY = "9617853d9765799343a222e8f5d78960"
 
-# Your search criteria
 SEARCH_KEYWORDS = ["cité ghazela", "حي الغزالة"]
 MAX_PRICE = 980000
 MIN_ROOMS = 3
@@ -32,50 +19,25 @@ def send_telegram_message(text):
     }
     requests.post(url, data=data)
 
-def has_been_seen(link):
-    ref = db.reference("seen_links")
-    seen_links = ref.get() or {}
-    return link in seen_links
-
-def mark_as_seen(link):
-    ref = db.reference("seen_links")
-    ref.update({link: True})
-
 def fetch_tayara():
-    url = "https://www.tayara.tn/ads/ar/search/real-estate/ariana/for-sale/apartments"
-    res = requests.get(url)
+    url = "https://www.tayara.tn/ads/c/Immobilier/Appartements/l/Ariana/Ghazela/"
+    proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={url}"
+    res = requests.get(proxy_url)
     soup = BeautifulSoup(res.text, "html.parser")
-    items = soup.select("a.css-1c8trrd")
-    print(f"Found {len(items)} listings on Tayara")  # Debug info
+
     results = []
-
+    items = soup.find_all("a")
+    
     for item in items:
-        title_tag = item.select_one("h2")
-        if not title_tag:
-            print("Skipped an item with no title")
+        # Try to get the title from 'title' attribute or <h2> tag
+        title = item.get("title") or (item.find("h2").text.strip() if item.find("h2") else None)
+        link = item.get("href")
+        if not title or not link:
             continue
-        title = title_tag.text.strip().lower()
-        link = "https://www.tayara.tn" + item["href"]
 
-        price_tag = item.select_one("span[data-testid='ad-price']")
-        price_text = price_tag.text.strip().replace("DT", "").replace(",", "").replace(" ", "") if price_tag else "0"
-        price = int("".join(filter(str.isdigit, price_text))) if price_text else 0
-
-        print(f"Checking listing: '{title}', Price: {price}, Link: {link}")  # Debug
-
-        if any(k in title for k in SEARCH_KEYWORDS) and price <= MAX_PRICE:
-            if any(f"s+{n}" in title for n in range(MIN_ROOMS, 10)):
-                if not has_been_seen(link):
-                    print(f"New matching listing found: {link}")  # Debug
-                    results.append(f"<b>{title.title()}</b>\n{price} TND\n{link}")
-                    mark_as_seen(link)
-                else:
-                    print("Already seen this listing.")
-            else:
-                print("Does not match room count requirement.")
-        else:
-            print("Does not match keywords or price.")
-
+        title_lower = title.lower()
+        if any(k in title_lower for k in SEARCH_KEYWORDS) and ("s+3" in title_lower or "s+4" in title_lower or "s+5" in title_lower):
+            results.append(f"<b>{title}</b>\nhttps://www.tayara.tn{link}")
     return results
 
 def main():
