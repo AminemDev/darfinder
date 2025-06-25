@@ -56,3 +56,15 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def run_bot():
+    main()
+    return "✅ Bot ran successfully", 200
+
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
