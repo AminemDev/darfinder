@@ -2,7 +2,7 @@ name: DarFinder Bot
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # ⏰ Every hour
+    - cron: "*/5 * * * *"  # ⏰ Every hour
   workflow_dispatch:  # 🖱️ Allow manual trigger
 
 jobs:
