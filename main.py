@@ -1,5 +1,4 @@
 import os
-import time
 import requests
 from bs4 import BeautifulSoup
 
@@ -70,8 +69,6 @@ def run_forever(delay_minutes=60):
             send_telegram_message(error_msg)
 
         print(f"⏰ Sleeping for {delay_minutes} minutes...\n")
-        time.sleep(delay_minutes * 60)
-
 if __name__ == "__main__":
     delay = int(os.getenv("CHECK_DELAY", 60))  # Default 60 mins
     run_forever(delay)
