@@ -1,8 +1,0 @@
-
-services:
-  - type: cron
-    name: darfinder
-    runtime: python
-    schedule: "0 */3 * * *"  # every 3 hours
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python main.py"
