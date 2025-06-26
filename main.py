@@ -1,15 +1,20 @@
 import os
 import requests
 from bs4 import BeautifulSoup
+import logging
 
-# Config
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# Load environment variables
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-SCRAPER_API_KEY = os.getenv("SCRAPER_API_KEY")  # Add this in Render too!
-SEARCH_KEYWORDS = ["cité ghazela", "حي الغزالة", "ghazela", "غزالة"]
-MAX_PRICE = 980000
 
-# Send Telegram message
+# Search criteria
+SEARCH_KEYWORDS = ["cité ghazela", "حي الغزالة", "ghazela"]
+MAX_PRICE = 980000
+MIN_ROOMS = 3
+
 def send_telegram_message(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {
@@ -17,58 +22,59 @@ def send_telegram_message(text):
         "text": text,
         "parse_mode": "HTML"
     }
-    try:
-        requests.post(url, data=data)
-    except Exception as e:
-        print(f"Failed to send Telegram message: {e}")
+    response = requests.post(url, data=data)
+    if response.status_code == 200:
+        logging.info("Telegram message sent.")
+    else:
+        logging.error(f"Failed to send Telegram message: {response.text}")
 
-# Scrape Tayara
 def fetch_tayara():
-    url = "https://www.tayara.tn/ads/l/Ariana/Ghazela/k/villa/?maxPrice=980000"
-    proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={url}"
-    res = requests.get(proxy_url)
+    url = "https://www.tayara.tn/ads/l/Ariana/Ghazela/k/villa/?maxPrice=980000&page=1"
+    logging.info(f"Fetching listings from: {url}")
+    try:
+        res = requests.get(url)
+        res.raise_for_status()
+    except Exception as e:
+        logging.error(f"Failed to fetch listings: {e}")
+        return []
+
     soup = BeautifulSoup(res.text, "html.parser")
+    items = soup.select("a.css-1c8trrd")
+    logging.info(f"Found {len(items)} listings.")
 
     results = []
-    items = soup.find_all("a")
-    print(f"🔍 Found {len(items)} <a> tags on Tayara page")
 
-    scanned = 0
     for item in items:
-        title = item.get("title") or (item.find("h2").text.strip() if item.find("h2") else None)
-        link = item.get("href")
-        if not title or not link:
+        title_tag = item.select_one("h2")
+        if not title_tag:
             continue
 
-        scanned += 1
-        title_lower = title.lower()
-        if any(k in title_lower for k in SEARCH_KEYWORDS) and (
-            "s+3" in title_lower or "s+4" in title_lower or "s+5" in title_lower or "villa" in title_lower
-        ):
-            full_link = "https://www.tayara.tn" + link if link.startswith("/") else link
-            results.append(f"<b>{title}</b>\n{full_link}")
+        title = title_tag.text.strip().lower()
+        link = "https://www.tayara.tn" + item.get("href", "")
+        price_tag = item.select_one("span[data-testid='ad-price']")
+        price_text = price_tag.text.strip().replace("DT", "").replace(",", "").replace(" ", "") if price_tag else "0"
+        price = int("".join(filter(str.isdigit, price_text))) if price_text else 0
 
-    print(f"✅ Scanned {scanned} ads, matched {len(results)} results")
-    return results, scanned
+        logging.info(f"Title: {title} | Price: {price} | Link: {link}")
 
-# Main loop
-def run_forever(delay_minutes=60):
-    while True:
-        print("⏳ Checking listings...")
-        try:
-            found, scanned = fetch_tayara()
-            if found:
-                for f in found:
-                    send_telegram_message(f)
-                send_telegram_message(f"📦 Checked {scanned} ads, found {len(found)} new listings in Cité Ghazela.")
-            else:
-                send_telegram_message(f"📦 Checked {scanned} ads — No new listings found in Cité Ghazela.")
-        except Exception as e:
-            error_msg = f"❌ Error during check: {str(e)}"
-            print(error_msg)
-            send_telegram_message(error_msg)
+        if any(keyword in title for keyword in SEARCH_KEYWORDS) and price <= MAX_PRICE:
+            if any(f"s+{n}" in title for n in range(MIN_ROOMS, 7)):
+                message = f"<b>{title.title()}</b>\n{price} TND\n{link}"
+                results.append(message)
+                logging.info("Matched and added to results.")
 
-        print(f"⏰ Sleeping for {delay_minutes} minutes...\n")
+    return results
+
+def main():
+    logging.info("Starting Tayara scraper.")
+    listings = fetch_tayara()
+    if listings:
+        logging.info(f"Sending {len(listings)} matching listing(s).")
+        for listing in listings:
+            send_telegram_message(listing)
+    else:
+        logging.info("No listings matched the filter.")
+        send_telegram_message("No new listings found in Cité Ghazela today.")
+
 if __name__ == "__main__":
-    delay = int(os.getenv("CHECK_DELAY", 60))  # Default 60 mins
-    run_forever(delay)
+    main()
