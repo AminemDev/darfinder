@@ -57,7 +57,7 @@ def fetch_tayara():
 
 # -------- Mubawab Fetcher (new) --------
 def fetch_mubawab():
-    url = "https://www.mubawab.tn/sd/raoued/cit%C3%A9-el-ghazela/villas-et-maisons-de-luxe-a-vendre:prmx:1000000:emr:3"
+    url = "https://www.mubawab.tn/sd/raoued/cité-el-ghazela/villas-et-maisons-de-luxe-a-vendre:prmx:1000000:emr:3"
     logging.info(f"Mubawab → Fetching: {url}")
     try:
         res = requests.get(url, timeout=10)
@@ -65,26 +65,14 @@ def fetch_mubawab():
     except Exception as e:
         logging.error(f"Mubawab fetch failed: {e}")
         return []
+
     soup = BeautifulSoup(res.text, "html.parser")
-    cards = soup.find_all("article")
-    logging.info(f"Mubawab → Found {len(cards)} cards")
-    send_telegram_message(f"Mubawab → Found {len(cards)} listings", is_debug=True)
-    results = []
-    for c in cards:
-        title_tag = c.find("h2")
-        price_tag = c.find("div", class_="price")
-        if not title_tag or not price_tag:
-            continue
-        title = title_tag.text.strip().lower()
-        price = int(''.join(filter(str.isdigit, price_tag.text)))
-        link = "https://www.mubawab.tn" + c.find("a", href=True)["href"]
-        logging.info(f"Mubawab listing: {title} | {price}TND | {link}")
-        if any(k in title for k in SEARCH_KEYWORDS) and price <= MAX_PRICE:
-            rooms = any(f"{n} chambres" in c.text.lower() for n in range(MIN_ROOMS, 10))
-            if rooms or "villa" in title or "maison" in title:
-                results.append(f"<b>{title.title()}</b>\n{price} TND\n{link}")
-                logging.info("Mubawab → Matched")
-    return results
+    # Dump first 3 listing blocks raw for analysis
+    raw_cards = soup.find_all(["article", "div"], limit=3)
+    for i, card in enumerate(raw_cards, start=1):
+        logging.info(f"Mubawab CARD {i} HTML: {card.prettify()[:500]}")
+
+    return []
 
 # -------- Main --------
 def main():
