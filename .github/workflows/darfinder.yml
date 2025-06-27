@@ -3,7 +3,7 @@ name: DarFinder Bot
 on:
   workflow_dispatch:  # 🖱️ Allow manual trigger
   schedule:
-    - cron: "*/5 * * * *"  # ⏰ Every hour
+    - cron: "0 * * * *"  # ⏰ Every hour
 jobs:
   run-bot:
     runs-on: ubuntu-latest
