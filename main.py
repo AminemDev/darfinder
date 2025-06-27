@@ -60,7 +60,7 @@ def fetch_mubawab():
     url = "https://www.mubawab.tn/sd/raoued/cité-el-ghazela/villas-et-maisons-de-luxe-a-vendre:prmx:1000000:emr:3"
     logging.info(f"Mubawab → Fetching: {url}")
     try:
-        res = requests.get(url, timeout=10)
+        res = requests.get(url, timeout=30)
         res.raise_for_status()
     except Exception as e:
         logging.error(f"Mubawab fetch failed: {e}")
