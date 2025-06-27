@@ -3,87 +3,119 @@ import requests
 from bs4 import BeautifulSoup
 import logging
 
-# === Configuration ===
+# --- Logging setup ---
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# --- Env variables ---
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+# --- Filters ---
 SEARCH_KEYWORDS = ["cité ghazela", "حي الغزالة", "ghazela"]
 MAX_PRICE = 980000
 MIN_ROOMS = 3
 
-# === Logging Setup ===
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
-# === Telegram Setup ===
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-DEBUG_MODE = os.getenv("DEBUG_TELEGRAM") == "1"
-
-def send_telegram_message(text, is_debug=False):
-    if is_debug and not DEBUG_MODE:
-        return
+# --- Telegram function ---
+def send_telegram_message(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"}
-    resp = requests.post(url, data=data)
-    if resp.status_code == 200:
-        logging.info("✅ Telegram message sent.")
-    else:
-        logging.error(f"❌ Telegram error: {resp.text}")
+    data = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": text,
+        "parse_mode": "HTML"
+    }
+    try:
+        res = requests.post(url, data=data)
+        if res.status_code == 200:
+            logging.info("✅ Telegram message sent.")
+        else:
+            logging.error(f"❌ Telegram failed: {res.text}")
+    except Exception as e:
+        logging.error(f"❌ Telegram exception: {e}")
 
-# -------- Tayara Fetcher (existing) --------
+# --- Tayara scraper ---
 def fetch_tayara():
     url = "https://www.tayara.tn/ads/l/Ariana/Ghazela/k/villa/?maxPrice=980000&page=1"
     logging.info(f"Tayara → Fetching: {url}")
     try:
-        res = requests.get(url, timeout=10)
+        res = requests.get(url, timeout=15)
         res.raise_for_status()
     except Exception as e:
         logging.error(f"Tayara fetch failed: {e}")
         return []
+
     soup = BeautifulSoup(res.text, "html.parser")
-    anchors = soup.find_all("a", href=True)
-    items = [a for a in anchors if "/item/" in a["href"] and a.find("h2", class_="card-title")]
-    logging.info(f"Tayara → Found {len(items)} listings")
-    send_telegram_message(f"Tayara → Found {len(items)} listings", is_debug=True)
+    items = soup.select("a.css-1c8trrd")
+    logging.info(f"🔍 Tayara found {len(items)} listing(s)")
+
     results = []
     for item in items:
-        title = item.find("h2", class_="card-title").text.strip().lower()
-        price = int(''.join(filter(str.isdigit, item.find("data", class_="font-arabic").text))) \
-                if item.find("data", class_="font-arabic") else 0
-        link = "https://www.tayara.tn" + item["href"]
+        title_tag = item.select_one("h2")
+        if not title_tag:
+            continue
+
+        title = title_tag.text.strip().lower()
+        link = "https://www.tayara.tn" + item.get("href", "")
+        price_tag = item.select_one("span[data-testid='ad-price']")
+        price_text = price_tag.text.strip().replace("DT", "").replace(",", "").replace(" ", "") if price_tag else "0"
+        price = int("".join(filter(str.isdigit, price_text))) if price_text else 0
+
         logging.info(f"Tayara listing: {title} | {price}TND | {link}")
+
         if any(k in title for k in SEARCH_KEYWORDS) and price <= MAX_PRICE:
-            if any(f"s+{n}" in title for n in range(MIN_ROOMS, 7)) or "villa" in title or "immeuble" in title:
-                results.append(f"<b>{title.title()}</b>\n{price} TND\n{link}")
-                logging.info("Tayara → Matched")
+            if any(f"s+{n}" in title for n in range(MIN_ROOMS, 7)):
+                message = f"<b>{title.title()}</b>\n{price} TND\n{link}"
+                results.append(message)
+                logging.info("✅ Tayara → Matched and added to results")
+
     return results
 
-# -------- Mubawab Fetcher (new) --------
-def fetch_mubawab():
-    url = "https://www.mubawab.tn/sd/raoued/cité-el-ghazela/villas-et-maisons-de-luxe-a-vendre:prmx:1000000:emr:3"
-    logging.info(f"Mubawab → Fetching: {url}")
+# --- Almindhar scraper ---
+def fetch_almindhar():
+    url = "https://al-mindhar.com/search-results/?status%5B%5D=for-sale&states%5B%5D=ariana&location%5B%5D=&type%5B%5D=Villa&bedrooms=&bathrooms=&min-price=0&max-price=1029987&min-area=0&max-area=10000"
+    logging.info(f"Almindhar → Fetching: {url}")
     try:
-        res = requests.get(url, timeout=30)
+        res = requests.get(url, timeout=15)
         res.raise_for_status()
     except Exception as e:
-        logging.error(f"Mubawab fetch failed: {e}")
+        logging.error(f"Almindhar fetch failed: {e}")
         return []
 
     soup = BeautifulSoup(res.text, "html.parser")
-    # Dump first 3 listing blocks raw for analysis
-    raw_cards = soup.find_all(["article", "div"], limit=3)
-    for i, card in enumerate(raw_cards, start=1):
-        logging.info(f"Mubawab CARD {i} HTML: {card.prettify()[:500]}")
+    items = soup.select("div.property-item")
+    logging.info(f"🔍 Almindhar found {len(items)} listing(s)")
 
-    return []
+    results = []
+    for item in items:
+        title_tag = item.select_one("h5 a")
+        title = title_tag.text.strip().lower() if title_tag else ""
+        link = title_tag["href"] if title_tag else ""
+        price_tag = item.select_one(".property-price")
+        price_text = price_tag.text.strip().replace("DT", "").replace(",", "").replace(" ", "") if price_tag else "0"
+        price = int("".join(filter(str.isdigit, price_text))) if price_text else 0
 
-# -------- Main --------
+        logging.info(f"Almindhar listing: {title} | {price}TND | {link}")
+
+        if any(k in title for k in SEARCH_KEYWORDS) and price <= MAX_PRICE:
+            message = f"<b>{title.title()}</b>\n{price} TND\n{link}"
+            results.append(message)
+            logging.info("✅ Almindhar → Matched and added to results")
+
+    return results
+
+# --- Main ---
 def main():
-    logging.info("🚀 Starting scraping process")
-    results = fetch_tayara() + fetch_mubawab()
-    if results:
-        logging.info(f"📬 Sending {len(results)} listing(s)")
-        for msg in results:
-            send_telegram_message(msg)
+    logging.info("📦 Starting DarFinder Bot")
+    listings = []
+
+    listings += fetch_tayara()
+    listings += fetch_almindhar()
+
+    if listings:
+        logging.info(f"📬 Sending {len(listings)} listing(s)")
+        for listing in listings:
+            send_telegram_message(listing)
     else:
-        logging.info("❌ No listings matched filters")
+        logging.info("📭 No new listings matched.")
         send_telegram_message("No new listings found in Cité Ghazela today.")
 
 if __name__ == "__main__":
